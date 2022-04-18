@@ -4,7 +4,7 @@ const Builder = std.build.Builder;
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
     const mode = b.standardReleaseOptions();
-    const exe = b.addExecutable("chip8z", "main.zig");
+    const exe = b.addExecutable("chip8z", "src/main.zig");
     exe.setBuildMode(mode);
     exe.setTarget(target);
     exe.linkSystemLibrary("SDL2");

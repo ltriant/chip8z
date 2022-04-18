@@ -2,11 +2,11 @@
 
 > Kill the C version, and let the Zig version be born
 
--- Aemon Targaryen (probably)
+— Aemon Targaryen (probably)
 
 # chip8z
 
-A CHIP-8 emulator, written in Zig, as a direct port from [my C version](https://github.com/ltriant/chip8).
+A CHIP-8 emulator, written in Zig, as a direct port from [my old C version](https://github.com/ltriant/chip8).
 
 I'm also using this as a place to try out Zig-isms.
 
@@ -22,11 +22,9 @@ $ sudo yum install SDL2-devel
 
 Or see the [libsdl installation documentation](https://wiki.libsdl.org/Installation) for more options.
 
-After that, it can be built with the Zig toolchain, which can be installed via most package managers:
+After that, it can be built with [the Zig toolchain](https://ziglang.org/):
 
 ```
-$ brew install zig --HEAD
-...
 $ zig build
 ...
 ```
