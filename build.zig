@@ -3,11 +3,14 @@ const Builder = std.build.Builder;
 
 pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
-    const mode = b.standardReleaseOptions();
-    const exe = b.addExecutable("chip8z", "src/main.zig");
-    exe.setBuildMode(mode);
-    exe.setTarget(target);
+    const optimize = b.standardOptimizeOption(.{});
+    const exe = b.addExecutable(.{
+        .name = "chip8z",
+        .root_source_file = .{ .path = "src/main.zig" },
+        .target = target,
+        .optimize = optimize,
+    });
     exe.linkSystemLibrary("SDL2");
     exe.linkLibC();
-    exe.install();
+    b.installArtifact(exe);
 }
