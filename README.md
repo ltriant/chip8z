@@ -29,6 +29,8 @@ $ zig build
 ...
 ```
 
+This currently builds with Zig 0.11, so it will not build with older versions.
+
 # Running
 
 ROMs can be sourced from anywhere you like, however I recommend getting them from [dmatlack/chip8](https://github.com/dmatlack/chip8/tree/master/roms/games). ROMs can be invoked with the path to the ROM as the argument:

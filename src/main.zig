@@ -30,11 +30,15 @@ const ScreenFactor = 10;
 
 // Run the CPU at 500Hz
 const ClockRate = 500.0;
-const MillisPerClock = @floatToInt(i64, (1.0 / ClockRate) * 1000.0);
+const MillisPerClock: i64 = @intFromFloat((1.0 / ClockRate) * 1000.0);
+
+// Poll for keyboard events at 60Hz
+const KeyboardPollRate = 60.0;
+const MillisPerKeyboardPoll: i64 = @intFromFloat((1.0 / KeyboardPollRate) * 1000.0);
 
 // The sound and delay timers clock at 60Hz
 const TimerClockRate = 60.0;
-const MillisPerTimerClock = @floatToInt(i64, (1.0 / TimerClockRate) * 1000.0);
+const MillisPerTimerClock: i64 = @intFromFloat(std.math.floor((1.0 / TimerClockRate) * 1000.0));
 
 // The number of audio samples to produce for a beep
 const SamplesPerBeep = 8192;
@@ -54,67 +58,18 @@ fn powerUp(machine: *chip8.Chip8) !void {
 
     var timerClockNow: i64 = time.milliTimestamp();
     var clockNow: i64 = undefined;
+    var keyboardClockNow: i64 = time.milliTimestamp();
 
     while (!quit) {
         clockNow = time.milliTimestamp();
-
-        while (c.SDL_PollEvent(&event) != 0) {
-            switch (event.type) {
-                c.SDL_QUIT => quit = true,
-                c.SDL_KEYDOWN => {
-                    switch (event.key.keysym.sym) {
-                        c.SDLK_1 => machine.keyDown(0x01),
-                        c.SDLK_2 => machine.keyDown(0x02),
-                        c.SDLK_3 => machine.keyDown(0x03),
-                        c.SDLK_4 => machine.keyDown(0x0c),
-                        c.SDLK_q => machine.keyDown(0x04),
-                        c.SDLK_w => machine.keyDown(0x05),
-                        c.SDLK_e => machine.keyDown(0x06),
-                        c.SDLK_r => machine.keyDown(0x0d),
-                        c.SDLK_a => machine.keyDown(0x07),
-                        c.SDLK_s => machine.keyDown(0x08),
-                        c.SDLK_d => machine.keyDown(0x09),
-                        c.SDLK_f => machine.keyDown(0x0e),
-                        c.SDLK_z => machine.keyDown(0x0a),
-                        c.SDLK_x => machine.keyDown(0x00),
-                        c.SDLK_c => machine.keyDown(0x0b),
-                        c.SDLK_v => machine.keyDown(0x0f),
-                        else => {},
-                    }
-                },
-                c.SDL_KEYUP => {
-                    switch (event.key.keysym.sym) {
-                        c.SDLK_1 => machine.keyUp(0x01),
-                        c.SDLK_2 => machine.keyUp(0x02),
-                        c.SDLK_3 => machine.keyUp(0x03),
-                        c.SDLK_4 => machine.keyUp(0x0c),
-                        c.SDLK_q => machine.keyUp(0x04),
-                        c.SDLK_w => machine.keyUp(0x05),
-                        c.SDLK_e => machine.keyUp(0x06),
-                        c.SDLK_r => machine.keyUp(0x0d),
-                        c.SDLK_a => machine.keyUp(0x07),
-                        c.SDLK_s => machine.keyUp(0x08),
-                        c.SDLK_d => machine.keyUp(0x09),
-                        c.SDLK_f => machine.keyUp(0x0e),
-                        c.SDLK_z => machine.keyUp(0x0a),
-                        c.SDLK_x => machine.keyUp(0x00),
-                        c.SDLK_c => machine.keyUp(0x0b),
-                        c.SDLK_v => machine.keyUp(0x0f),
-                        else => {},
-                    }
-                },
-                else => {},
-            }
-        }
-
         const should_render = machine.step();
 
         if (should_render) {
-            for (machine.Screen) |row, y| {
-                for (row) |cell, x| {
+            for (machine.Screen, 0..) |row, y| {
+                for (row, 0..) |cell, x| {
                     var rect = c.SDL_Rect{
-                        .x = @intCast(c_int, x * ScreenFactor),
-                        .y = @intCast(c_int, y * ScreenFactor),
+                        .x = @intCast(x * ScreenFactor),
+                        .y = @intCast(y * ScreenFactor),
                         .w = ScreenFactor,
                         .h = ScreenFactor,
                     };
@@ -139,13 +94,15 @@ fn powerUp(machine: *chip8.Chip8) !void {
         }
 
         const now = time.milliTimestamp();
-        var timeDiff = now - clockNow;
 
+        // Cap the frame-rate
+        var timeDiff = now - clockNow;
         if (timeDiff < MillisPerClock) {
-            const timeToSleep = @intCast(u64, MillisPerClock - timeDiff);
+            const timeToSleep: u64 = @intCast(MillisPerClock - timeDiff);
             time.sleep(timeToSleep * time.ns_per_ms);
         }
 
+        // Clock the timers
         timeDiff = now - timerClockNow;
         if (timeDiff >= MillisPerTimerClock) {
             machine.tickTimers();
@@ -154,6 +111,61 @@ fn powerUp(machine: *chip8.Chip8) !void {
             if (machine.ST > 0) {
                 beep();
             }
+        }
+
+        // Poll for keyboard events
+        timeDiff = now - keyboardClockNow;
+        if (timeDiff >= MillisPerKeyboardPoll) {
+            while (c.SDL_PollEvent(&event) != 0) {
+                switch (event.type) {
+                    c.SDL_QUIT => quit = true,
+                    c.SDL_KEYDOWN => {
+                        switch (event.key.keysym.sym) {
+                            c.SDLK_1 => machine.keyDown(0x01),
+                            c.SDLK_2 => machine.keyDown(0x02),
+                            c.SDLK_3 => machine.keyDown(0x03),
+                            c.SDLK_4 => machine.keyDown(0x0c),
+                            c.SDLK_q => machine.keyDown(0x04),
+                            c.SDLK_w => machine.keyDown(0x05),
+                            c.SDLK_e => machine.keyDown(0x06),
+                            c.SDLK_r => machine.keyDown(0x0d),
+                            c.SDLK_a => machine.keyDown(0x07),
+                            c.SDLK_s => machine.keyDown(0x08),
+                            c.SDLK_d => machine.keyDown(0x09),
+                            c.SDLK_f => machine.keyDown(0x0e),
+                            c.SDLK_z => machine.keyDown(0x0a),
+                            c.SDLK_x => machine.keyDown(0x00),
+                            c.SDLK_c => machine.keyDown(0x0b),
+                            c.SDLK_v => machine.keyDown(0x0f),
+                            else => {},
+                        }
+                    },
+                    c.SDL_KEYUP => {
+                        switch (event.key.keysym.sym) {
+                            c.SDLK_1 => machine.keyUp(0x01),
+                            c.SDLK_2 => machine.keyUp(0x02),
+                            c.SDLK_3 => machine.keyUp(0x03),
+                            c.SDLK_4 => machine.keyUp(0x0c),
+                            c.SDLK_q => machine.keyUp(0x04),
+                            c.SDLK_w => machine.keyUp(0x05),
+                            c.SDLK_e => machine.keyUp(0x06),
+                            c.SDLK_r => machine.keyUp(0x0d),
+                            c.SDLK_a => machine.keyUp(0x07),
+                            c.SDLK_s => machine.keyUp(0x08),
+                            c.SDLK_d => machine.keyUp(0x09),
+                            c.SDLK_f => machine.keyUp(0x0e),
+                            c.SDLK_z => machine.keyUp(0x0a),
+                            c.SDLK_x => machine.keyUp(0x00),
+                            c.SDLK_c => machine.keyUp(0x0b),
+                            c.SDLK_v => machine.keyUp(0x0f),
+                            else => {},
+                        }
+                    },
+                    else => {},
+                }
+            }
+
+            keyboardClockNow = now;
         }
     }
 }
@@ -232,7 +244,7 @@ pub fn main() !void {
     //
 
     const dir = fs.cwd();
-    const file = try dir.openFile(args[1], .{ .read = true });
+    const file = try dir.openFile(args[1], .{ .mode = .read_only });
     defer file.close();
 
     var prgRom: [4096]u8 = undefined;

@@ -87,20 +87,20 @@ pub const Chip8 = struct {
         };
 
         var ram: [4096]u8 = undefined;
-        mem.set(u8, ram[0..], 0);
+        @memset(ram[0..], 0);
         mem.copy(u8, ram[0..], hex_digits[0..]);
         mem.copy(u8, ram[PrgRomAddress..], prgRom[0..]);
 
         var screen: [ScreenHeight][ScreenWidth]u1 = undefined;
-        for (screen) |*row| {
-            mem.set(u1, row[0..], 0);
+        for (&screen) |*row| {
+            @memset(row[0..], 0);
         }
 
         var keys: [16]bool = undefined;
-        mem.set(bool, keys[0..], false);
+        @memset(keys[0..], false);
 
         var v: [16]u8 = undefined;
-        mem.set(u8, v[0..], 0);
+        @memset(v[0..], 0);
 
         return Chip8{
             .Screen = screen,
@@ -124,8 +124,8 @@ pub const Chip8 = struct {
 
         const op1 = self.RAM[self.PC];
         const op2 = self.RAM[self.PC + 1];
-        const opcode = (@intCast(u16, op1) << 8) | @intCast(u16, op2);
-        const nnn = ((@intCast(u16, op1) & 0x0f) << 8) | @intCast(u16, op2);
+        const opcode = (@as(u16, op1) << 8) | @as(u16, op2);
+        const nnn = ((@as(u16, op1) & 0x0f) << 8) | @as(u16, op2);
 
         var shouldRender = false;
 
@@ -133,26 +133,26 @@ pub const Chip8 = struct {
             0x00 => {
                 if (opcode == 0x00e0) {
                     log.info("{X:0>4} CLS", .{self.PC});
-                    for (self.Screen) |*row| {
-                        mem.set(u1, row[0..], 0);
+                    for (&self.Screen) |*row| {
+                        @memset(row[0..], 0);
                     }
                     self.PC += 2;
                 } else if (opcode == 0x00ee) {
                     // The stack is an array of 16-bit values, used to store the address that the
                     // interpreter should return to when finished with a subroutine.
                     self.SP -= 2;
-                    const ret = (@intCast(u16, self.RAM[StackAddress + self.SP + 1]) << 8) | @intCast(u16, self.RAM[StackAddress + self.SP]);
+                    const ret = (@as(u16, self.RAM[StackAddress + self.SP + 1]) << 8) | @as(u16, self.RAM[StackAddress + self.SP]);
                     log.info("{X:0>4} RET = {X:0>4}", .{ self.PC, ret });
                     self.PC = ret;
                 } else {
                     log.info("{X:0>4} SYS #{X:0>4}", .{ self.PC, nnn });
-                    self.PC = @intCast(usize, nnn);
+                    self.PC = @as(usize, nnn);
                 }
             },
 
             0x10 => {
                 log.info("{X:0>4} JP #{X:0>4}", .{ self.PC, nnn });
-                self.PC = @intCast(usize, nnn);
+                self.PC = @as(usize, nnn);
             },
 
             0x20 => {
@@ -160,14 +160,14 @@ pub const Chip8 = struct {
                 // should return to when finished with a subroutine.
                 log.info("{X:0>4} CALL #{X:0>4}", .{ self.PC, nnn });
                 const nextPC = self.PC + 2;
-                self.RAM[StackAddress + self.SP] = @intCast(u8, nextPC & 0x00ff);
-                self.RAM[StackAddress + self.SP + 1] = @intCast(u8, (nextPC & 0xff00) >> 8);
+                self.RAM[StackAddress + self.SP] = @intCast(nextPC & 0x00ff);
+                self.RAM[StackAddress + self.SP + 1] = @intCast((nextPC & 0xff00) >> 8);
                 self.SP += 2;
-                self.PC = @intCast(usize, nnn);
+                self.PC = @as(usize, nnn);
             },
 
             0x30 => {
-                const vx = @intCast(usize, op1 & 0x0f);
+                const vx = @as(usize, op1 & 0x0f);
                 log.info("{X:0>4} SE V{} ({X:0>4}), #{X:0>2}", .{ self.PC, vx, self.V[vx], op2 });
 
                 if (self.V[vx] == op2) {
@@ -178,7 +178,7 @@ pub const Chip8 = struct {
             },
 
             0x40 => {
-                const vx = @intCast(usize, op1 & 0x0f);
+                const vx = @as(usize, op1 & 0x0f);
                 log.info("{X:0>4} SNE V{}, #{X:0>2}", .{ self.PC, vx, op2 });
 
                 if (self.V[vx] != op2) {
@@ -189,8 +189,8 @@ pub const Chip8 = struct {
             },
 
             0x50 => {
-                const vx = @intCast(usize, op1 & 0x0f);
-                const vy = @intCast(usize, op2 & 0xf0) >> 4;
+                const vx = @as(usize, op1 & 0x0f);
+                const vy = @as(usize, op2 & 0xf0) >> 4;
 
                 log.info("{X:0>4} SE V{}, V{}", .{ self.PC, vx, vy });
 
@@ -202,26 +202,28 @@ pub const Chip8 = struct {
             },
 
             0x60 => {
-                const vx = @intCast(usize, op1 & 0x0f);
+                const vx = @as(usize, op1 & 0x0f);
                 log.info("{X:0>4} LD V{}, #{X:0>2}", .{ self.PC, vx, op2 });
                 self.V[vx] = op2;
                 self.PC += 2;
             },
 
             0x70 => {
-                const vx = @intCast(usize, op1 & 0x0f);
+                const vx = @as(usize, op1 & 0x0f);
                 log.info("{X:0>4} ADD V{}, #{X:0>2}", .{ self.PC, vx, op2 });
 
-                const v = @addWithOverflow(u8, self.V[vx], op2, &self.V[vx]);
-                if (v) {
+                const rv = @addWithOverflow(self.V[vx], op2);
+                self.V[vx] = rv[0];
+                const v = rv[1];
+                if (v == 1) {
                     log.info("  result = {}", .{self.V[vx]});
                 }
                 self.PC += 2;
             },
 
             0x80 => {
-                const vx = @intCast(usize, op1 & 0x0f);
-                const vy = @intCast(usize, op2 & 0xf0) >> 4;
+                const vx = @as(usize, op1 & 0x0f);
+                const vy = @as(usize, op2 & 0xf0) >> 4;
 
                 switch (op2 & 0x0f) {
                     0x00 => {
@@ -242,8 +244,8 @@ pub const Chip8 = struct {
                     },
                     0x04 => {
                         log.info("{X:0>4} ADD V{}, V{}", .{ self.PC, vx, vy });
-                        const rv = @intCast(u16, self.V[vx]) + @intCast(u16, self.V[vy]);
-                        self.V[vx] = @intCast(u8, rv & 0x00ff);
+                        const rv = @as(u16, self.V[vx]) + @as(u16, self.V[vy]);
+                        self.V[vx] = @truncate(rv & 0x00ff);
 
                         if (rv > 255) {
                             self.V[0xF] = 1;
@@ -260,10 +262,10 @@ pub const Chip8 = struct {
                         }
 
                         // Subtracting Y from X is the same as adding the two's complement of Y with overflow.
-                        var tmp_vy: u8 = 0;
-                        var v = @addWithOverflow(u8, ~self.V[vy], 1, &tmp_vy);
-                        v = @addWithOverflow(u8, self.V[vx], tmp_vy, &self.V[vx]);
-                        if (v) {
+                        var rv = @addWithOverflow(~self.V[vy], 1);
+                        rv = @addWithOverflow(self.V[vx], rv[0]);
+                        self.V[vx] = rv[0];
+                        if (rv[1] == 1) {
                             log.info("  result = {}", .{self.V[vx]});
                         }
                     },
@@ -281,9 +283,10 @@ pub const Chip8 = struct {
                         }
 
                         // Subtracting Y from X is the same as adding the two's complement of Y with overflow.
-                        var v = @addWithOverflow(u8, ~self.V[vx], 1, &self.V[vx]);
-                        v = @addWithOverflow(u8, self.V[vy], self.V[vx], &self.V[vx]);
-                        if (v) {
+                        var rv = @addWithOverflow(~self.V[vx], 1);
+                        rv = @addWithOverflow(self.V[vy], rv[0]);
+                        self.V[vx] = rv[0];
+                        if (rv[1] == 1) {
                             log.info("  result = {}", .{self.V[vx]});
                         }
                     },
@@ -299,8 +302,8 @@ pub const Chip8 = struct {
             },
 
             0x90 => {
-                const vx = @intCast(usize, op1 & 0x0f);
-                const vy = @intCast(usize, op2 & 0xf0) >> 4;
+                const vx = @as(usize, op1 & 0x0f);
+                const vy = @as(usize, op2 & 0xf0) >> 4;
 
                 log.info("{X:0>4} SNE V{}, V{}", .{ self.PC, vx, vy });
 
@@ -319,44 +322,45 @@ pub const Chip8 = struct {
 
             0xb0 => {
                 log.info("{X:0>4} JP V0, #{X:0>4}", .{ self.PC, nnn });
-                self.PC = @intCast(u16, self.V[0]) + nnn;
+                self.PC = @as(u16, self.V[0]) + nnn;
             },
 
             0xc0 => {
-                const vx = @intCast(usize, op1 & 0x0f);
+                const vx = @as(usize, op1 & 0x0f);
 
                 log.info("{X:0>4} RND V{}, #{X:0>2}", .{ self.PC, vx, op2 });
                 var rnd: [1]u8 = undefined;
                 os.getrandom(&rnd) catch |err| {
-                    log.info("Unable to getrandom: {s}", .{err});
+                    log.info("Unable to getrandom: {}", .{err});
                 };
                 self.V[vx] = rnd[0] & op2;
                 self.PC += 2;
             },
 
             0xd0 => {
-                const vx = self.V[@intCast(usize, op1 & 0x0f)];
-                const vy = self.V[@intCast(usize, op2 & 0xf0) >> 4];
-                const n_rows = @intCast(usize, op2) & 0x0f;
+                const vx = self.V[@as(usize, op1 & 0x0f)];
+                const vy = self.V[@as(usize, op2 & 0xf0) >> 4];
+                const n_rows = @as(usize, op2) & 0x0f;
 
                 log.info("{X:0>4} DRW V{}, V{}, {X:0>2}", .{ self.PC, vx, vy, n_rows });
 
                 self.V[0xF] = 0;
                 var y: usize = 0;
                 while (y < n_rows) {
-                    const sprite_row = self.RAM[@intCast(usize, self.I) + y];
+                    const sprite_row = self.RAM[@as(usize, self.I) + y];
                     const screen_y = (vy + y) % ScreenHeight;
 
                     var x: usize = 0;
                     while (x < 8) {
-                        const val = (sprite_row >> (7 - @intCast(u3, x))) & 1;
+                        const bitShift: u3 = @intCast(7 - x);
+                        const val: u1 = @truncate((sprite_row >> bitShift) & 0x01);
                         const screen_x = (vx + x) % ScreenWidth;
 
                         if ((self.Screen[screen_y][screen_x] == 1) and (val == 1)) {
                             self.V[0xF] |= 1;
                         }
 
-                        self.Screen[screen_y][screen_x] ^= @intCast(u1, val);
+                        self.Screen[screen_y][screen_x] ^= val;
 
                         x += 1;
                     }
@@ -368,8 +372,8 @@ pub const Chip8 = struct {
             },
 
             0xe0 => {
-                const vx = @intCast(usize, op1 & 0x0f);
-                const idx = @intCast(usize, self.V[vx]);
+                const vx = @as(usize, op1 & 0x0f);
+                const idx = @as(usize, self.V[vx]);
 
                 switch (op2) {
                     0x9e => {
@@ -396,7 +400,7 @@ pub const Chip8 = struct {
             },
 
             0xf0 => {
-                const vx = @intCast(usize, op1 & 0x0f);
+                const vx = @as(usize, op1 & 0x0f);
 
                 switch (op2) {
                     0x07 => {
@@ -474,7 +478,7 @@ pub const Chip8 = struct {
 
         if (self.WaitingForKeyPress) {
             self.WaitingForKeyPress = false;
-            self.V[self.KeyWaitRegister] = @intCast(u8, key);
+            self.V[self.KeyWaitRegister] = @truncate(key);
         }
     }
 
